@@ -184,20 +184,7 @@ func (cpo *ControlPlaneOperatorOptions) adaptDeployment(cpContext component.Work
 func (cpo *ControlPlaneOperatorOptions) applyPlatformSpecificConfig(hcp *hyperv1.HostedControlPlane, deployment *appsv1.Deployment) {
 	switch hcp.Spec.Platform.Type {
 	case hyperv1.AWSPlatform:
-		deployment.Spec.Template.Spec.Volumes = append(deployment.Spec.Template.Spec.Volumes,
-			corev1.Volume{
-				Name: "provider-creds",
-				VolumeSource: corev1.VolumeSource{
-					Secret: &corev1.SecretVolumeSource{
-						SecretName: "control-plane-operator-creds",
-					},
-				},
-			})
 		deployment.Spec.Template.Spec.Containers[0].Env = append(deployment.Spec.Template.Spec.Containers[0].Env,
-			corev1.EnvVar{
-				Name:  "AWS_SHARED_CREDENTIALS_FILE",
-				Value: "/etc/provider/credentials",
-			},
 			corev1.EnvVar{
 				Name:  "AWS_REGION",
 				Value: hcp.Spec.Platform.AWS.Region,
@@ -206,11 +193,39 @@ func (cpo *ControlPlaneOperatorOptions) applyPlatformSpecificConfig(hcp *hyperv1
 				Name:  "AWS_SDK_LOAD_CONFIG",
 				Value: "true",
 			})
-		deployment.Spec.Template.Spec.Containers[0].VolumeMounts = append(deployment.Spec.Template.Spec.Containers[0].VolumeMounts,
-			corev1.VolumeMount{
-				Name:      "provider-creds",
-				MountPath: "/etc/provider",
-			})
+
+		// Use web identity tokens when a role ARN is available (e.g. EKS Pod Identity),
+		// otherwise fall back to the shared credentials file. The AWS SDK credential
+		// chain tries shared credentials before web identity, so they must not both
+		// be set — the SDK errors out if AWS_SHARED_CREDENTIALS_FILE points to a
+		// non-existent file before ever trying the web identity token provider.
+		roleARN := hcp.Spec.Platform.AWS.RolesRef.ControlPlaneOperatorARN
+		if roleARN != "" {
+			deployment.Spec.Template.Spec.Containers[0].Env = append(deployment.Spec.Template.Spec.Containers[0].Env,
+				corev1.EnvVar{Name: "AWS_WEB_IDENTITY_TOKEN_FILE", Value: "/var/run/secrets/openshift/serviceaccount/token"},
+				corev1.EnvVar{Name: "AWS_ROLE_ARN", Value: roleARN},
+			)
+		} else {
+			deployment.Spec.Template.Spec.Volumes = append(deployment.Spec.Template.Spec.Volumes,
+				corev1.Volume{
+					Name: "provider-creds",
+					VolumeSource: corev1.VolumeSource{
+						Secret: &corev1.SecretVolumeSource{
+							SecretName: "control-plane-operator-creds",
+						},
+					},
+				})
+			deployment.Spec.Template.Spec.Containers[0].Env = append(deployment.Spec.Template.Spec.Containers[0].Env,
+				corev1.EnvVar{
+					Name:  "AWS_SHARED_CREDENTIALS_FILE",
+					Value: "/etc/provider/credentials",
+				})
+			deployment.Spec.Template.Spec.Containers[0].VolumeMounts = append(deployment.Spec.Template.Spec.Containers[0].VolumeMounts,
+				corev1.VolumeMount{
+					Name:      "provider-creds",
+					MountPath: "/etc/provider",
+				})
+		}
 	case hyperv1.AzurePlatform:
 		if azureutil.IsAroHCP() {
 			// Add the client ID of the managed Azure key vault as an environment variable on the CPO. This is used in

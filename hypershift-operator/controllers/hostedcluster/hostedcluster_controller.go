@@ -3813,8 +3813,9 @@ func (r *HostedClusterReconciler) validateHostedClusterSupport(hc *hyperv1.Hoste
 			return fmt.Errorf("AWS_REGION environment variable is not set for the operator")
 		}
 		credFile := os.Getenv("AWS_SHARED_CREDENTIALS_FILE")
-		if credFile == "" {
-			return fmt.Errorf("AWS_SHARED_CREDENTIALS_FILE environment variable is not set for the operator")
+		containerCreds := os.Getenv("AWS_CONTAINER_CREDENTIALS_FULL_URI")
+		if credFile == "" && containerCreds == "" {
+			return fmt.Errorf("no AWS credentials configured for the operator")
 		}
 		if hc.Spec.Platform.AWS.Region != region {
 			return fmt.Errorf("operator only supports private clusters in region %s", region)
@@ -4114,7 +4115,7 @@ func (r *HostedClusterReconciler) reconcileAWSOIDCDocuments(ctx context.Context,
 	}
 
 	if r.OIDCStorageProviderS3BucketName == "" || r.S3Client == nil {
-		return errors.New("hypershift wasn't configured with a S3 bucket or credentials, this makes it unable to set up OIDC for AWS clusters. Please install hypershift with the --oidc-storage-provider-s3-bucket-name, --oidc-storage-provider-s3-region and --oidc-storage-provider-s3-credentials flags set. The bucket must pre-exist and the credentials must be authorized to write into it")
+		return errors.New("hypershift wasn't configured with a S3 bucket, this makes it unable to set up OIDC for AWS clusters. Please install hypershift with the --oidc-storage-provider-s3-bucket-name and --oidc-storage-provider-s3-region flags set. Optionally set --oidc-storage-provider-s3-credentials; if omitted, the default AWS SDK credential chain (e.g. Pod Identity) will be used. The bucket must pre-exist and the credentials must be authorized to write into it")
 	}
 
 	secret := &corev1.Secret{
@@ -4181,7 +4182,7 @@ func (r *HostedClusterReconciler) cleanupOIDCBucketData(ctx context.Context, log
 	}
 
 	if r.OIDCStorageProviderS3BucketName == "" || r.S3Client == nil {
-		return fmt.Errorf("hypershift wasn't configured with AWS credentials and a bucket, can not clean up OIDC documents from bucket. Please either set those up or clean up manually and then remove the %s finalizer from the hosted cluster", oidcDocumentsFinalizer)
+		return fmt.Errorf("hypershift wasn't configured with a S3 bucket, can not clean up OIDC documents from bucket. Please configure --oidc-storage-provider-s3-bucket-name and --oidc-storage-provider-s3-region (credentials are optional if using Pod Identity), or clean up manually and then remove the %s finalizer from the hosted cluster", oidcDocumentsFinalizer)
 	}
 
 	var objectsToDelete []*s3.ObjectIdentifier

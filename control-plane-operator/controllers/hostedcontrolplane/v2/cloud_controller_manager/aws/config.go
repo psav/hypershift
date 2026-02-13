@@ -30,6 +30,13 @@ func adaptConfig(cpContext component.WorkloadContext, cm *corev1.ConfigMap) erro
 		}
 	}
 
+	// The CCM uses the Zone field to derive the AWS region. If Zone is not set,
+	// default to the first AZ in the region (e.g. us-east-1 -> us-east-1a) so
+	// the CCM doesn't fall back to IMDS which isn't available.
+	if zone == "" && cpContext.HCP.Spec.Platform.AWS != nil && cpContext.HCP.Spec.Platform.AWS.Region != "" {
+		zone = cpContext.HCP.Spec.Platform.AWS.Region + "a"
+	}
+
 	// Check for annotation overrides
 	if mode, ok := cpContext.HCP.Annotations[hyperv1.AWSLoadBalancerHealthProbeModeAnnotation]; ok {
 		if mode == loadBalancerHealthProbeModeShared || mode == loadBalancerHealthProbeModeServiceNodePort {

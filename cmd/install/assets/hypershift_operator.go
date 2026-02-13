@@ -521,25 +521,31 @@ func (o HyperShiftOperatorDeployment) Build() *appsv1.Deployment {
 		}
 	}
 
-	if len(o.OIDCBucketName) > 0 && len(o.OIDCBucketRegion) > 0 && len(o.OIDCStorageProviderS3SecretKey) > 0 &&
-		o.OIDCStorageProviderS3Secret != nil && len(o.OIDCStorageProviderS3Secret.Name) > 0 {
+	if len(o.OIDCBucketName) > 0 && len(o.OIDCBucketRegion) > 0 {
 		args = append(args,
 			"--oidc-storage-provider-s3-bucket-name="+o.OIDCBucketName,
 			"--oidc-storage-provider-s3-region="+o.OIDCBucketRegion,
-			"--oidc-storage-provider-s3-credentials=/etc/oidc-storage-provider-s3-creds/"+o.OIDCStorageProviderS3SecretKey,
 		)
-		volumeMounts = append(volumeMounts, corev1.VolumeMount{
-			Name:      "oidc-storage-provider-s3-creds",
-			MountPath: "/etc/oidc-storage-provider-s3-creds",
-		})
-		volumes = append(volumes, corev1.Volume{
-			Name: "oidc-storage-provider-s3-creds",
-			VolumeSource: corev1.VolumeSource{
-				Secret: &corev1.SecretVolumeSource{
-					SecretName: o.OIDCStorageProviderS3Secret.Name,
+		// If explicit credentials are provided, mount them. Otherwise the operator
+		// falls back to the default AWS SDK credential chain (e.g. EKS Pod Identity).
+		if len(o.OIDCStorageProviderS3SecretKey) > 0 &&
+			o.OIDCStorageProviderS3Secret != nil && len(o.OIDCStorageProviderS3Secret.Name) > 0 {
+			args = append(args,
+				"--oidc-storage-provider-s3-credentials=/etc/oidc-storage-provider-s3-creds/"+o.OIDCStorageProviderS3SecretKey,
+			)
+			volumeMounts = append(volumeMounts, corev1.VolumeMount{
+				Name:      "oidc-storage-provider-s3-creds",
+				MountPath: "/etc/oidc-storage-provider-s3-creds",
+			})
+			volumes = append(volumes, corev1.Volume{
+				Name: "oidc-storage-provider-s3-creds",
+				VolumeSource: corev1.VolumeSource{
+					Secret: &corev1.SecretVolumeSource{
+						SecretName: o.OIDCStorageProviderS3Secret.Name,
+					},
 				},
-			},
-		})
+			})
+		}
 	}
 
 	if o.UWMTelemetry {
@@ -1338,20 +1344,20 @@ func (o HyperShiftOperatorClusterRole) Build() *rbacv1.ClusterRole {
 			})
 	}
 
-	if o.ManagedService == hyperv1.AroHCP {
-		role.Rules = append(role.Rules,
-			rbacv1.PolicyRule{
-				APIGroups: []string{"secrets-store.csi.x-k8s.io"},
-				Resources: []string{"secretproviderclasses"},
-				Verbs: []string{
-					"get",
-					"list",
-					"create",
-					"update",
-					"watch",
-				},
-			})
-	}
+	// SecretProviderClass access is needed on any platform where the secrets-store
+	// CSI driver may be installed (e.g. ARO HCP, EKS).
+	role.Rules = append(role.Rules,
+		rbacv1.PolicyRule{
+			APIGroups: []string{"secrets-store.csi.x-k8s.io"},
+			Resources: []string{"secretproviderclasses"},
+			Verbs: []string{
+				"get",
+				"list",
+				"create",
+				"update",
+				"watch",
+			},
+		})
 
 	// Add audit log persistence RBAC if enabled
 	if o.EnableAuditLogPersistence {

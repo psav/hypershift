@@ -2236,6 +2236,13 @@ func (r *HostedControlPlaneReconciler) reconcilePKI(ctx context.Context, hcp *hy
 		}); err != nil {
 			return fmt.Errorf("failed to reconcile %s secret: %w", awsPodIdentityWebhookServingCert.Name, err)
 		}
+
+		awsEbsCsiDriverControllerMetricsServingCert := manifests.AWSEbsCsiDriverControllerMetricsServingCert(hcp.Namespace)
+		if _, err := createOrUpdate(ctx, r, awsEbsCsiDriverControllerMetricsServingCert, func() error {
+			return pki.ReconcileAWSEbsCsiDriverControllerMetricsServingCertSecret(awsEbsCsiDriverControllerMetricsServingCert, rootCASecret, p.OwnerRef)
+		}); err != nil {
+			return fmt.Errorf("failed to reconcile aws ebs csi driver controller metrics serving cert: %w", err)
+		}
 	case hyperv1.AzurePlatform:
 		azureDiskCsiDriverControllerMetricsService := manifests.AzureDiskCsiDriverControllerMetricsService(hcp.Namespace)
 		if err = r.Get(ctx, client.ObjectKeyFromObject(azureDiskCsiDriverControllerMetricsService), azureDiskCsiDriverControllerMetricsService); err != nil {

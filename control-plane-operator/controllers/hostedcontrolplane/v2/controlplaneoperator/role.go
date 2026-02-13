@@ -3,7 +3,6 @@ package controlplaneoperator
 import (
 	"os"
 
-	"github.com/openshift/hypershift/support/azureutil"
 	"github.com/openshift/hypershift/support/config"
 	component "github.com/openshift/hypershift/support/controlplane-component"
 	"github.com/openshift/hypershift/support/util"
@@ -20,19 +19,19 @@ func adaptRole(cpContext component.WorkloadContext, role *rbacv1.Role) error {
 		})
 	}
 
-	if azureutil.IsAroHCP() {
-		role.Rules = append(role.Rules, rbacv1.PolicyRule{
-			APIGroups: []string{"secrets-store.csi.x-k8s.io"},
-			Resources: []string{"secretproviderclasses"},
-			Verbs: []string{
-				"get",
-				"list",
-				"create",
-				"update",
-				"watch",
-			},
-		})
-	}
+	// SecretProviderClass access is needed on any platform where the secrets-store
+	// CSI driver may be installed (e.g. ARO HCP, EKS).
+	role.Rules = append(role.Rules, rbacv1.PolicyRule{
+		APIGroups: []string{"secrets-store.csi.x-k8s.io"},
+		Resources: []string{"secretproviderclasses"},
+		Verbs: []string{
+			"get",
+			"list",
+			"create",
+			"update",
+			"watch",
+		},
+	})
 
 	if role.Annotations == nil {
 		role.Annotations = map[string]string{}
