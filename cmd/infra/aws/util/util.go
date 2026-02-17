@@ -87,7 +87,12 @@ func (opts *AWSCredentialsOptions) GetSession(agent string, secretData *util.Cre
 }
 
 func NewSession(agent, credentialsFile, credKey, credSecretKey, region string) *session.Session {
-	sessionOpts := session.Options{}
+	sessionOpts := session.Options{
+		// Enable shared config so the SDK picks up credentials from the full
+		// chain including AWS_WEB_IDENTITY_TOKEN_FILE / AWS_ROLE_ARN env vars
+		// (used with EKS Pod Identity / IRSA).
+		SharedConfigState: session.SharedConfigEnable,
+	}
 	if credentialsFile != "" {
 		sessionOpts.SharedConfigFiles = append(sessionOpts.SharedConfigFiles, credentialsFile)
 	}

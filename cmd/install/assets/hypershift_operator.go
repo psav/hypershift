@@ -618,28 +618,34 @@ func (o HyperShiftOperatorDeployment) Build() *appsv1.Deployment {
 
 	privatePlatformType := hyperv1.PlatformType(o.PrivatePlatform)
 	if privatePlatformType != hyperv1.NonePlatform {
-		// Add generic provider credentials secret volume
-		volumes = append(volumes, corev1.Volume{
-			Name: "credentials",
-			VolumeSource: corev1.VolumeSource{
-				Secret: &corev1.SecretVolumeSource{
-					SecretName: o.AWSPrivateSecret.Name,
+		// Add provider credentials secret volume if credentials are provided.
+		// When omitted, the operator uses the default AWS SDK credential chain (e.g. Pod Identity).
+		if o.AWSPrivateSecret != nil {
+			volumes = append(volumes, corev1.Volume{
+				Name: "credentials",
+				VolumeSource: corev1.VolumeSource{
+					Secret: &corev1.SecretVolumeSource{
+						SecretName: o.AWSPrivateSecret.Name,
+					},
 				},
-			},
-		})
-		volumeMounts = append(volumeMounts, corev1.VolumeMount{
-			Name:      "credentials",
-			MountPath: "/etc/provider",
-		})
+			})
+			volumeMounts = append(volumeMounts, corev1.VolumeMount{
+				Name:      "credentials",
+				MountPath: "/etc/provider",
+			})
+		}
 
 		// Add platform specific settings
 		switch privatePlatformType {
 		case hyperv1.AWSPlatform:
+			if o.AWSPrivateSecret != nil {
+				envVars = append(envVars,
+					corev1.EnvVar{
+						Name:  "AWS_SHARED_CREDENTIALS_FILE",
+						Value: "/etc/provider/" + o.AWSPrivateSecretKey,
+					})
+			}
 			envVars = append(envVars,
-				corev1.EnvVar{
-					Name:  "AWS_SHARED_CREDENTIALS_FILE",
-					Value: "/etc/provider/" + o.AWSPrivateSecretKey,
-				},
 				corev1.EnvVar{
 					Name:  "AWS_REGION",
 					Value: o.AWSPrivateRegion,

@@ -441,9 +441,15 @@ func (r *AWSEndpointServiceReconciler) reconcileAWSEndpointServiceStatus(ctx con
 			return fmt.Errorf("load balancer %s is not yet active", *lbARN)
 		}
 
+		// Get the management cluster infrastructure name for tagging.
+		// On OpenShift this comes from the Infrastructure CRD; on non-OpenShift
+		// clusters (e.g. EKS) the CRD may not exist, so fall back gracefully.
+		infraName := "unknown"
 		managementClusterInfrastructure := &configv1.Infrastructure{ObjectMeta: metav1.ObjectMeta{Name: "cluster"}}
 		if err := r.Get(ctx, client.ObjectKeyFromObject(managementClusterInfrastructure), managementClusterInfrastructure); err != nil {
-			return fmt.Errorf("failed to get management cluster infrastructure: %w", err)
+			log.Info("unable to get management cluster Infrastructure resource, using fallback for tagging", "err", err)
+		} else {
+			infraName = managementClusterInfrastructure.Status.InfrastructureName
 		}
 
 		// create the Endpoint Service
@@ -454,7 +460,7 @@ func (r *AWSEndpointServiceReconciler) reconcileAWSEndpointServiceStatus(ctx con
 			TagSpecifications: []*ec2.TagSpecification{{
 				ResourceType: aws.String("vpc-endpoint-service"),
 				Tags: append(apiTagToEC2Tag(awsEndpointService.Spec.ResourceTags), &ec2.Tag{
-					Key:   aws.String("kubernetes.io/cluster/" + managementClusterInfrastructure.Status.InfrastructureName),
+					Key:   aws.String("kubernetes.io/cluster/" + infraName),
 					Value: aws.String("owned"),
 				}),
 			}},

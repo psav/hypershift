@@ -167,7 +167,16 @@ func (r *PrivateServiceObserver) Reconcile(ctx context.Context, req ctrl.Request
 			Namespace: r.HCPNamespace,
 		},
 	}
-	lbName := strings.Split(strings.Split(svc.Status.LoadBalancer.Ingress[0].Hostname, ".")[0], "-")[0]
+	// NLB hostname format: {name}-{16hexid}.elb.{region}.amazonaws.com
+	// Extract the NLB name by taking everything before the last hyphen in the
+	// first DNS segment. This works for both OpenShift-style names (no hyphens)
+	// and EKS AWS LB Controller-style names (contain hyphens).
+	firstSegment := strings.Split(svc.Status.LoadBalancer.Ingress[0].Hostname, ".")[0]
+	lastHyphen := strings.LastIndex(firstSegment, "-")
+	lbName := firstSegment
+	if lastHyphen != -1 {
+		lbName = firstSegment[:lastHyphen]
+	}
 	if _, err := r.CreateOrUpdate(ctx, r, awsEndpointService, func() error {
 		awsEndpointService.Spec.NetworkLoadBalancerName = lbName
 		if hcp.Spec.Platform.AWS != nil {

@@ -268,9 +268,9 @@ func (r *HostedControlPlaneReconciler) registerComponents(hcp *hyperv1.HostedCon
 }
 
 func GetEC2Client() (ec2iface.EC2API, *session.Session) {
-	// AWS_SHARED_CREDENTIALS_FILE and AWS_REGION envvar should be set in operator deployment
-	// when reconciling an AWS hosted control plane
-	if os.Getenv("AWS_SHARED_CREDENTIALS_FILE") != "" {
+	// Create an EC2 client when AWS credentials are available, either via a
+	// shared credentials file or web identity tokens (e.g. EKS Pod Identity).
+	if os.Getenv("AWS_SHARED_CREDENTIALS_FILE") != "" || os.Getenv("AWS_WEB_IDENTITY_TOKEN_FILE") != "" {
 		awsSession := awsutil.NewSession("control-plane-operator", "", "", "", "")
 		awsConfig := awssdk.NewConfig()
 		ec2Client := ec2.New(awsSession, awsConfig)
