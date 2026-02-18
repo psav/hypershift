@@ -201,6 +201,8 @@ func ReconcilePrivateService(svc *corev1.Service, hcp *hyperv1.HostedControlPlan
 	svc.Annotations["service.beta.kubernetes.io/aws-load-balancer-cross-zone-load-balancing-enabled"] = "true"
 	svc.Annotations["service.beta.kubernetes.io/aws-load-balancer-internal"] = "true"
 	svc.Annotations["service.beta.kubernetes.io/aws-load-balancer-type"] = "nlb"
+	// AWS LB Controller uses a different annotation format for load balancer attributes.
+	svc.Annotations["service.beta.kubernetes.io/aws-load-balancer-attributes"] = "load_balancing.cross_zone.enabled=true"
 	svc.Spec.Ports[0] = portSpec
 	return nil
 }

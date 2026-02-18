@@ -484,7 +484,7 @@ func NewStartCommand() *cobra.Command {
 			os.Exit(1)
 		}
 
-		if hcp.Spec.Platform.Type == hyperv1.AWSPlatform && util.IsPrivateHCP(hcp) && mgmtClusterCaps.Has(capabilities.CapabilityRoute) {
+		if hcp.Spec.Platform.Type == hyperv1.AWSPlatform && util.IsPrivateHCP(hcp) {
 			controllerName := "PrivateKubeAPIServerServiceObserver"
 			if err := (&awsprivatelink.PrivateServiceObserver{
 				Client:                 mgr.GetClient(),
